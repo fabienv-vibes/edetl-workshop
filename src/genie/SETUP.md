@@ -1,4 +1,10 @@
-# Genie Space — manual setup (~2 min)
+# Genie Space — preferred path
+
+`python src/setup_dev.py --catalog <C>` from the repo root creates the Genie space for you (along with the pipeline and dashboard). Use that.
+
+If you'd rather create it by hand, the manual path is below.
+
+## Manual setup (~2 min)
 
 After the SDP pipeline has populated the gold tables, create a Genie Space in the workspace:
 

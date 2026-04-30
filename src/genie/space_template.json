@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {"id": "01f144cd94b71ac4ad6d8e9436d00a40", "question": ["Which 10 matters generated the most billable revenue?"]},
+      {"id": "01f144cd94b810a6aa0a9649bfd0c181", "question": ["What's the breakdown of revenue by practice area?"]},
+      {"id": "01f144cd94b81694b2a99eee2a06f74b", "question": ["How many doc events did we have last week?"]},
+      {"id": "01f144cd94b81baba96837c6fbb6efb3", "question": ["Which matters were opened but never closed?"]},
+      {"id": "01f144cd94b9102eb9940c52c6799661", "question": ["What's the average billable hours per matter for M&A vs Litigation?"]},
+      {"id": "01f144cd94b915a3868cfb53cb788da0", "question": ["Show me the top timekeepers by total revenue."]},
+      {"id": "01f144cd94b91b1eb58305351422651d", "question": ["Which clients have the highest doc activity?"]},
+      {"id": "01f144cd94ba1080accb66738fbfac87", "question": ["How does monthly billable revenue compare across regions?"]}
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {"identifier": "__CATALOG__.__SCHEMA__.gold_billable_hours_by_matter_month"},
+      {"identifier": "__CATALOG__.__SCHEMA__.gold_doc_activity_by_matter"},
+      {"identifier": "__CATALOG__.__SCHEMA__.gold_matter_lifecycle"},
+      {"identifier": "__CATALOG__.__SCHEMA__.gold_matter_summary"},
+      {"identifier": "__CATALOG__.__SCHEMA__.silver_doc_audit"},
+      {"identifier": "__CATALOG__.__SCHEMA__.silver_matter_events"},
+      {"identifier": "__CATALOG__.__SCHEMA__.silver_matters_master"},
+      {"identifier": "__CATALOG__.__SCHEMA__.silver_time_entries"}
+    ]
+  }
+}

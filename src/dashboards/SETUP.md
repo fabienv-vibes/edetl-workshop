@@ -1,4 +1,10 @@
-# Dashboard — manual setup (~1 min)
+# Dashboard — preferred path
+
+`python src/setup_dev.py --catalog <C>` from the repo root creates the dashboard for you (along with the pipeline and Genie space). Use that.
+
+If you'd rather import this single artifact by hand, the manual path is below.
+
+## Manual setup (~1 min)
 
 The `edetl_overview.lvdash.json` file in this folder is an exported AI/BI (Lakeview) dashboard. To import it into the workspace:
 
