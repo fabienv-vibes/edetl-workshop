@@ -41,13 +41,14 @@ edetl-workshop/
 
 1. A Unity Catalog you can `USE_CATALOG`, `CREATE_SCHEMA`, and `CREATE_VOLUME` on
 2. **Databricks CLI** v0.240+ — [install](https://docs.databricks.com/dev-tools/cli/install.html)
-3. **Serverless** enabled on your workspace (terms accepted)
-4. **Python 3.10+** locally for the generator and tests
+3. **Python 3.10+** on your laptop for the generator, setup script, and tests
 
 ```bash
 pip install databricks-sdk faker pytest
 databricks auth login --host https://<your-workspace>
 ```
+
+`setup_dev.py` and `generate_files.py` run from **your local terminal** — they use the Databricks SDK with whatever profile `databricks auth login` set up. (They also work inside a Databricks notebook if you'd rather.)
 
 ## Workshop flow
 
