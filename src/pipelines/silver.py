@@ -110,3 +110,30 @@ def silver_doc_audit():
             "_ingested_at",
         )
     )
+
+
+@dlt.table(
+    name="silver_matters_master",
+    comment="Matter dimension: typed columns, one row per matter_id.",
+    table_properties={"quality": "silver"},
+)
+@dlt.expect_or_drop("has_matter_id", "matter_id IS NOT NULL")
+@dlt.expect("known_practice_area", "practice_area IN ('M&A', 'Litigation', 'IP', 'Real Estate', 'Employment', 'Tax', 'Regulatory')")
+def silver_matters_master():
+    return (
+        dlt.read_stream("bronze_matters_master")
+        .withColumn("opened_ts", F.to_timestamp(F.col("opened_at")))
+        .withColumn("opened_date", F.to_date(F.col("opened_ts")))
+        .select(
+            "matter_id",
+            "client_name",
+            "practice_area",
+            "region",
+            "opened_ts",
+            "opened_date",
+            "partner_lead_user_id",
+            "billing_arrangement",
+            "_source_file",
+            "_ingested_at",
+        )
+    )

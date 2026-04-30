@@ -1,0 +1,306 @@
+{
+  "datasets": [
+    {
+      "name": "kpis",
+      "displayName": "KPIs",
+      "queryLines": [
+        "SELECT ",
+        "  COUNT(*) AS total_matters, ",
+        "  SUM(CAST(total_revenue_usd AS DOUBLE)) AS total_revenue_usd, ",
+        "  SUM(total_lifecycle_events) AS total_events, ",
+        "  SUM(total_doc_events) AS total_doc_events ",
+        "FROM gold_matter_summary"
+      ]
+    },
+    {
+      "name": "monthly_revenue",
+      "displayName": "Monthly billable revenue",
+      "queryLines": [
+        "SELECT ",
+        "  entry_month, ",
+        "  CAST(SUM(total_revenue_usd) AS DOUBLE) AS revenue_usd, ",
+        "  SUM(total_hours) AS hours ",
+        "FROM gold_billable_hours_by_matter_month ",
+        "GROUP BY entry_month ",
+        "ORDER BY entry_month"
+      ]
+    },
+    {
+      "name": "by_practice",
+      "displayName": "Revenue by practice area",
+      "queryLines": [
+        "SELECT ",
+        "  practice_area, ",
+        "  CAST(SUM(total_revenue_usd) AS DOUBLE) AS revenue_usd, ",
+        "  COUNT(*) AS matter_count ",
+        "FROM gold_matter_summary ",
+        "GROUP BY practice_area ",
+        "ORDER BY revenue_usd DESC"
+      ]
+    },
+    {
+      "name": "top_matters",
+      "displayName": "Top matters by revenue",
+      "queryLines": [
+        "SELECT ",
+        "  matter_id, ",
+        "  client_name, ",
+        "  practice_area, ",
+        "  region, ",
+        "  CAST(total_revenue_usd AS DOUBLE) AS revenue_usd, ",
+        "  total_billable_hours, ",
+        "  total_doc_events, ",
+        "  is_closed ",
+        "FROM gold_matter_summary ",
+        "ORDER BY revenue_usd DESC NULLS LAST ",
+        "LIMIT 25"
+      ]
+    },
+    {
+      "name": "doc_actions",
+      "displayName": "Doc actions distribution",
+      "queryLines": [
+        "SELECT ",
+        "  action, ",
+        "  SUM(event_count) AS event_count ",
+        "FROM gold_doc_activity_by_matter ",
+        "GROUP BY action ",
+        "ORDER BY event_count DESC"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "overview",
+      "displayName": "Overview",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "title",
+            "multilineTextboxSpec": {
+              "lines": ["## edetl-workshop overview"]
+            }
+          },
+          "position": {"x": 0, "y": 0, "width": 12, "height": 1}
+        },
+        {
+          "widget": {
+            "name": "subtitle",
+            "multilineTextboxSpec": {
+              "lines": ["Matters, billable revenue, and doc activity from the SDP gold layer."]
+            }
+          },
+          "position": {"x": 0, "y": 1, "width": 12, "height": 1}
+        },
+        {
+          "widget": {
+            "name": "kpi-matters",
+            "queries": [{
+              "name": "main_query",
+              "query": {
+                "datasetName": "kpis",
+                "fields": [{"name": "total_matters", "expression": "`total_matters`"}],
+                "disaggregated": true
+              }
+            }],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {"fieldName": "total_matters", "displayName": "Matters"}
+              },
+              "frame": {"title": "Total matters", "showTitle": true}
+            }
+          },
+          "position": {"x": 0, "y": 2, "width": 3, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "kpi-revenue",
+            "queries": [{
+              "name": "main_query",
+              "query": {
+                "datasetName": "kpis",
+                "fields": [{"name": "total_revenue_usd", "expression": "`total_revenue_usd`"}],
+                "disaggregated": true
+              }
+            }],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {"fieldName": "total_revenue_usd", "displayName": "Revenue (USD)", "format": {"type": "number-currency", "currencyCode": "USD", "abbreviation": "compact"}}
+              },
+              "frame": {"title": "Billable revenue", "showTitle": true}
+            }
+          },
+          "position": {"x": 3, "y": 2, "width": 3, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "kpi-events",
+            "queries": [{
+              "name": "main_query",
+              "query": {
+                "datasetName": "kpis",
+                "fields": [{"name": "total_events", "expression": "`total_events`"}],
+                "disaggregated": true
+              }
+            }],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {"fieldName": "total_events", "displayName": "Events"}
+              },
+              "frame": {"title": "Lifecycle events", "showTitle": true}
+            }
+          },
+          "position": {"x": 6, "y": 2, "width": 3, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "kpi-doc-events",
+            "queries": [{
+              "name": "main_query",
+              "query": {
+                "datasetName": "kpis",
+                "fields": [{"name": "total_doc_events", "expression": "`total_doc_events`"}],
+                "disaggregated": true
+              }
+            }],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {"fieldName": "total_doc_events", "displayName": "Doc events"}
+              },
+              "frame": {"title": "Document events", "showTitle": true}
+            }
+          },
+          "position": {"x": 9, "y": 2, "width": 3, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "monthly-revenue-chart",
+            "queries": [{
+              "name": "main_query",
+              "query": {
+                "datasetName": "monthly_revenue",
+                "fields": [
+                  {"name": "entry_month", "expression": "`entry_month`"},
+                  {"name": "revenue_usd", "expression": "`revenue_usd`"}
+                ],
+                "disaggregated": true
+              }
+            }],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {"fieldName": "entry_month", "scale": {"type": "temporal"}, "displayName": "Month"},
+                "y": {"fieldName": "revenue_usd", "scale": {"type": "quantitative"}, "displayName": "Revenue (USD)"}
+              },
+              "frame": {"title": "Billable revenue by month", "showTitle": true}
+            }
+          },
+          "position": {"x": 0, "y": 5, "width": 6, "height": 5}
+        },
+        {
+          "widget": {
+            "name": "by-practice-chart",
+            "queries": [{
+              "name": "main_query",
+              "query": {
+                "datasetName": "by_practice",
+                "fields": [
+                  {"name": "practice_area", "expression": "`practice_area`"},
+                  {"name": "revenue_usd", "expression": "`revenue_usd`"}
+                ],
+                "disaggregated": true
+              }
+            }],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {"fieldName": "practice_area", "scale": {"type": "categorical"}, "displayName": "Practice area"},
+                "y": {"fieldName": "revenue_usd", "scale": {"type": "quantitative"}, "displayName": "Revenue (USD)"}
+              },
+              "frame": {"title": "Revenue by practice area", "showTitle": true}
+            }
+          },
+          "position": {"x": 6, "y": 5, "width": 6, "height": 5}
+        },
+        {
+          "widget": {
+            "name": "doc-actions-chart",
+            "queries": [{
+              "name": "main_query",
+              "query": {
+                "datasetName": "doc_actions",
+                "fields": [
+                  {"name": "action", "expression": "`action`"},
+                  {"name": "event_count", "expression": "`event_count`"}
+                ],
+                "disaggregated": true
+              }
+            }],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {"fieldName": "event_count", "scale": {"type": "quantitative"}, "displayName": "Events"},
+                "color": {"fieldName": "action", "scale": {"type": "categorical"}, "displayName": "Action"}
+              },
+              "frame": {"title": "Doc actions distribution", "showTitle": true}
+            }
+          },
+          "position": {"x": 0, "y": 10, "width": 6, "height": 5}
+        },
+        {
+          "widget": {
+            "name": "top-matters-table",
+            "queries": [{
+              "name": "main_query",
+              "query": {
+                "datasetName": "top_matters",
+                "fields": [
+                  {"name": "matter_id", "expression": "`matter_id`"},
+                  {"name": "client_name", "expression": "`client_name`"},
+                  {"name": "practice_area", "expression": "`practice_area`"},
+                  {"name": "region", "expression": "`region`"},
+                  {"name": "revenue_usd", "expression": "`revenue_usd`"},
+                  {"name": "total_billable_hours", "expression": "`total_billable_hours`"},
+                  {"name": "total_doc_events", "expression": "`total_doc_events`"},
+                  {"name": "is_closed", "expression": "`is_closed`"}
+                ],
+                "disaggregated": true
+              }
+            }],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {"fieldName": "matter_id", "displayName": "Matter"},
+                  {"fieldName": "client_name", "displayName": "Client"},
+                  {"fieldName": "practice_area", "displayName": "Practice"},
+                  {"fieldName": "region", "displayName": "Region"},
+                  {"fieldName": "revenue_usd", "displayName": "Revenue (USD)"},
+                  {"fieldName": "total_billable_hours", "displayName": "Hours"},
+                  {"fieldName": "total_doc_events", "displayName": "Doc events"},
+                  {"fieldName": "is_closed", "displayName": "Closed"}
+                ]
+              },
+              "frame": {"title": "Top 25 matters by revenue", "showTitle": true}
+            }
+          },
+          "position": {"x": 6, "y": 10, "width": 6, "height": 5}
+        }
+      ]
+    }
+  ]
+}

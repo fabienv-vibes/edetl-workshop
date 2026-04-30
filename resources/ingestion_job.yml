@@ -9,12 +9,12 @@ resources:
             pipeline_id: ${resources.pipelines.ingestion_pipeline.id}
             full_refresh: false
 
-      # Schedule runs only in stg/prod-style targets. Dev target stays
-      # manual-trigger because mode: development pauses schedules anyway.
+      # Hourly schedule, paused by default — attendees unpause it after the
+      # first manual run during the workshop.
       schedule:
         quartz_cron_expression: "0 0 * * * ?"   # every hour on the hour
         timezone_id: UTC
-        pause_status: UNPAUSED
+        pause_status: PAUSED
 
       max_concurrent_runs: 1
 

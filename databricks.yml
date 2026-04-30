@@ -4,37 +4,31 @@ bundle:
 include:
   - resources/*.yml
 
+# Single target: stg.
+# In dev, attendees create their own SDP pipeline directly from the workspace
+# SDP editor (pointing at this repo cloned into a Databricks Git folder) — no
+# DAB involved. The DAB owns stg only, demonstrating the workspace -> DAB
+# promotion pattern. See README for the dev setup walk-through.
 variables:
   catalog:
     description: "UC catalog (REQUIRED — set via --var catalog=... or repo secret)"
   schema:
-    description: "Schema for pipeline outputs (auto-derived per target)"
+    description: "Schema for pipeline outputs"
+    default: edetl_stg
   volume:
     description: "Volume name for raw landing files"
     default: raw_landing
   raw_path:
-    description: "Computed UC volume path for the file generator's output"
+    description: "Computed UC volume path the pipeline reads from"
     default: /Volumes/${var.catalog}/${var.schema}/${var.volume}
 
 targets:
-  dev:
-    mode: development
-    default: true
-    workspace:
-      host: https://fevm-juniper-square-demo.cloud.databricks.com
-    variables:
-      schema: edetl_workshop_${workspace.current_user.short_name}
-
   stg:
+    default: true
     mode: production
     workspace:
       host: https://fevm-juniper-square-demo.cloud.databricks.com
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
-    variables:
-      schema: edetl_stg
-    # In a real setup, swap this for run_as.service_principal_name and add an
-    # explicit CAN_MANAGE permission for the SP. For this workshop demo we
-    # deploy as the current user.
     permissions:
       - level: CAN_MANAGE
         user_name: ${workspace.current_user.userName}

@@ -1,0 +1,14 @@
+resources:
+  schemas:
+    pipeline_schema:
+      catalog_name: ${var.catalog}
+      name: ${var.schema}
+      comment: "edetl-workshop output tables (bronze/silver/gold)"
+
+  volumes:
+    raw_landing:
+      catalog_name: ${var.catalog}
+      schema_name: ${var.schema}
+      name: ${var.volume}
+      volume_type: MANAGED
+      comment: "Auto Loader raw JSON landing zone for the edetl-workshop pipeline"

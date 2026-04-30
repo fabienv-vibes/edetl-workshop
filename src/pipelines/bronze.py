@@ -49,3 +49,12 @@ def bronze_time_entries():
 )
 def bronze_doc_audit():
     return _read_stream("doc_audit")
+
+
+@dlt.table(
+    name="bronze_matters_master",
+    comment="Raw matter master/dimension records. One file expected, written once at bootstrap.",
+    table_properties={"quality": "bronze"},
+)
+def bronze_matters_master():
+    return _read_stream("matters_master")
