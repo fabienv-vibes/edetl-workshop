@@ -1,0 +1,29 @@
+resources:
+  pipelines:
+    ingestion_pipeline:
+      name: "[${bundle.target}] edetl-${var.schema}"
+      catalog: ${var.catalog}
+      target: ${var.schema}
+
+      # Pipeline configuration values are read inside the .py files via
+      # spark.conf.get("workshop.raw_path").
+      configuration:
+        workshop.raw_path: ${var.raw_path}
+
+      # Serverless SDP — no cluster config required.
+      serverless: true
+      photon: true
+      channel: current
+      continuous: false
+
+      libraries:
+        - file:
+            path: ../src/pipelines/bronze.py
+        - file:
+            path: ../src/pipelines/silver.py
+        - file:
+            path: ../src/pipelines/gold.py
+
+      permissions:
+        - level: CAN_VIEW
+          group_name: users

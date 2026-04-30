@@ -1,0 +1,23 @@
+resources:
+  jobs:
+    ingestion_job:
+      name: "[${bundle.target}] edetl-ingestion"
+
+      tasks:
+        - task_key: run_ingestion_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ingestion_pipeline.id}
+            full_refresh: false
+
+      # Schedule runs only in stg/prod-style targets. Dev target stays
+      # manual-trigger because mode: development pauses schedules anyway.
+      schedule:
+        quartz_cron_expression: "0 0 * * * ?"   # every hour on the hour
+        timezone_id: UTC
+        pause_status: UNPAUSED
+
+      max_concurrent_runs: 1
+
+      permissions:
+        - level: CAN_VIEW
+          group_name: users

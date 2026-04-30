@@ -1,0 +1,40 @@
+bundle:
+  name: edetl-workshop
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: "UC catalog (REQUIRED — set via --var catalog=... or repo secret)"
+  schema:
+    description: "Schema for pipeline outputs (auto-derived per target)"
+  volume:
+    description: "Volume name for raw landing files"
+    default: raw_landing
+  raw_path:
+    description: "Computed UC volume path for the file generator's output"
+    default: /Volumes/${var.catalog}/${var.schema}/${var.volume}
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://fevm-juniper-square-demo.cloud.databricks.com
+    variables:
+      schema: edetl_workshop_${workspace.current_user.short_name}
+
+  stg:
+    mode: production
+    workspace:
+      host: https://fevm-juniper-square-demo.cloud.databricks.com
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      schema: edetl_stg
+    # In a real setup, swap this for run_as.service_principal_name and add an
+    # explicit CAN_MANAGE permission for the SP. For this workshop demo we
+    # deploy as the current user.
+    permissions:
+      - level: CAN_MANAGE
+        user_name: ${workspace.current_user.userName}
