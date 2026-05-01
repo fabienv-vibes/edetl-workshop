@@ -8,12 +8,19 @@
 # MAGIC bronze grows by exactly the file count, silver applies expectations and drops bad rows, gold
 # MAGIC materialized views recompute.
 # MAGIC
-# MAGIC Leave `schema` blank for your dev schema. Set it to `edetl_stg` after Block B's bundle deploy to
-# MAGIC seed the staging volume instead.
+# MAGIC **How to run:** run cell 1 to create the widgets, set `catalog` (and optionally `schema` —
+# MAGIC leave blank for your dev schema, set to `edetl_stg` for the staging volume after Block B's deploy),
+# MAGIC then **Run all** from the top.
 
 # COMMAND ----------
 
-# MAGIC %pip install faker
+# Cell 1: create widgets (run this first so they appear at the top of the notebook).
+dbutils.widgets.text("catalog", "", "Unity Catalog")
+dbutils.widgets.text("schema", "", "Schema (blank = your dev schema)")
+
+# COMMAND ----------
+
+# MAGIC %pip install -U databricks-sdk faker
 
 # COMMAND ----------
 
@@ -21,16 +28,12 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog", "", "Unity Catalog")
-dbutils.widgets.text("schema", "", "Schema (blank = your dev schema)")
+import os
+import sys
+
 catalog = dbutils.widgets.get("catalog")
 schema = dbutils.widgets.get("schema") or None
 assert catalog, "Set the `catalog` widget at the top of the notebook before running."
-
-# COMMAND ----------
-
-import os
-import sys
 
 sys.path.insert(0, os.path.join(os.getcwd(), "src", "generator"))
 
