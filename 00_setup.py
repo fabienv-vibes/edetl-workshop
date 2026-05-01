@@ -14,6 +14,10 @@
 # MAGIC **How to run:** run cell 1 below to create the `catalog` widget, set it to a Unity Catalog you have
 # MAGIC `USE_CATALOG`, `CREATE_SCHEMA`, and `CREATE_VOLUME` on, then **Run all** from the top.
 # MAGIC
+# MAGIC The names of resources are derived from your email — schema `edetl_workshop_<short_username>`,
+# MAGIC and pipeline / job / dashboard / Genie space all named `edetl-workshop-<short_username>`.
+# MAGIC The preview cell below prints the exact names before anything is created.
+# MAGIC
 # MAGIC Idempotent — re-run any time and it upgrades existing assets in place.
 
 # COMMAND ----------
@@ -31,15 +35,36 @@ dbutils.widgets.text("catalog", "", "Unity Catalog")
 
 # COMMAND ----------
 
+# Preview the resources this run will create / update.
 import os
 import sys
 
 catalog = dbutils.widgets.get("catalog")
 assert catalog, "Set the `catalog` widget at the top of the notebook before running."
 
-# This notebook lives at the root of the workshop Git folder; src/ is one level down.
 sys.path.insert(0, os.path.join(os.getcwd(), "src"))
+sys.path.insert(0, os.path.join(os.getcwd(), "src", "generator"))
 
+from databricks.sdk import WorkspaceClient
+from generate_files import SCHEMA_PREFIX, VOLUME_NAME, resolve_user_short_name
+
+w = WorkspaceClient()
+short = resolve_user_short_name(w)
+schema = f"{SCHEMA_PREFIX}_{short}"
+asset_name = f"edetl-workshop-{short}"
+
+print("This run will create / update the following in your workspace:")
+print(f"  Workspace: {w.config.host}")
+print(f"  Schema:    {catalog}.{schema}")
+print(f"  Volume:    {catalog}.{schema}.{VOLUME_NAME}")
+print(f"  Pipeline:  {asset_name}")
+print(f"  Job:       {asset_name}")
+print(f"  Dashboard: {asset_name}")
+print(f"  Genie:     {asset_name}")
+
+# COMMAND ----------
+
+# Run the setup. The script also prints the same summary plus the resource URLs at the end.
 from setup_dev import main
 
 main(["--catalog", catalog])

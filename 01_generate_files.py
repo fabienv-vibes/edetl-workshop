@@ -28,18 +28,33 @@ dbutils.widgets.text("schema", "", "Schema (blank = your dev schema)")
 
 # COMMAND ----------
 
+# Preview the target volume this run will write to.
 import os
 import sys
 
 catalog = dbutils.widgets.get("catalog")
-schema = dbutils.widgets.get("schema") or None
+schema_override = dbutils.widgets.get("schema") or None
 assert catalog, "Set the `catalog` widget at the top of the notebook before running."
 
 sys.path.insert(0, os.path.join(os.getcwd(), "src", "generator"))
 
+from databricks.sdk import WorkspaceClient
+from generate_files import SCHEMA_PREFIX, VOLUME_NAME, resolve_user_short_name
+
+w = WorkspaceClient()
+short = resolve_user_short_name(w)
+schema = schema_override or f"{SCHEMA_PREFIX}_{short}"
+
+print("This run will write JSON files into:")
+print(f"  Workspace: {w.config.host}")
+print(f"  Volume:    {catalog}.{schema}.{VOLUME_NAME}")
+
+# COMMAND ----------
+
+# Run the generator.
 from generate_files import main
 
 args = ["--catalog", catalog]
-if schema:
-    args.extend(["--schema", schema])
+if schema_override:
+    args.extend(["--schema", schema_override])
 main(args)
