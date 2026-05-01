@@ -12,8 +12,9 @@ For production engineering teams who want CLI + GitHub Actions CI/CD, see [Produ
 
 ```
 edetl-workshop/
-├── 00_setup.py                     # Workshop entry point: dev provisioning notebook
+├── 00_setup.py                     # Workshop entry point: dev provisioning notebook (data eng core)
 ├── 01_generate_files.py            # Notebook: drop more files into your raw_landing volume
+├── 02_extras.py                    # Notebook (optional): provisions the Genie space
 ├── databricks.yml                  # Bundle config (single target: stg)
 ├── resources/
 │   ├── storage.yml                 # stg schema + raw_landing volume
@@ -21,6 +22,7 @@ edetl-workshop/
 │   └── ingestion_job.yml           # Lakeflow Job that runs the pipeline
 ├── src/
 │   ├── setup_dev.py                # Underlying setup logic (called by 00_setup.py)
+│   ├── setup_extras.py             # Underlying Genie space setup (called by 02_extras.py)
 │   ├── pipelines/
 │   │   ├── bronze.py               # Auto Loader streaming tables (4 sources)
 │   │   ├── silver.py               # Typed + expectations
@@ -29,11 +31,11 @@ edetl-workshop/
 │   ├── generator/
 │   │   └── generate_files.py       # Underlying file generator (called by 01_generate_files.py)
 │   ├── dashboards/
-│   │   ├── edetl_overview.lvdash.json   # AI/BI dashboard JSON (importable)
-│   │   └── SETUP.md                # Manual import path (preferred: 00_setup.py)
+│   │   ├── edetl_overview.lvdash.json   # Reference AI/BI dashboard JSON (Block C uses Genie Code instead)
+│   │   └── SETUP.md                # Manual import path (fallback)
 │   └── genie/
 │       ├── space_template.json     # Genie space serialized payload (placeholders for catalog/schema)
-│       └── SETUP.md                # Manual setup path (preferred: 00_setup.py)
+│       └── SETUP.md                # Manual setup path (preferred: 02_extras.py)
 ├── tests/
 │   └── test_transforms.py          # pytest unit tests
 └── .github/workflows/
@@ -45,13 +47,14 @@ edetl-workshop/
 
 ```mermaid
 flowchart LR
-    GEN["generate_files.py<br>synthetic JSON"]
-    SETUP["setup_dev.py<br>provisions everything"]
+    GEN["01_generate_files.py<br>synthetic JSON"]
+    SETUP["00_setup.py<br>data eng core"]
+    EXTRAS["02_extras.py / Genie Code prompt<br>(optional, Block C)"]
     VOL[("UC Volume<br>raw_landing")]
     SDP["SDP Pipeline<br>bronze → silver → gold<br>(@dlt.expect_or_drop)"]
     JOB["Lakeflow Job<br>hourly, paused"]
-    DASH["AI/BI Dashboard<br>KPIs + charts"]
-    GENIE["Genie Space<br>NL → SQL"]
+    DASH["AI/BI Dashboard<br>(via Genie Code)"]
+    GENIE["Genie Space<br>(via 02_extras.py)"]
 
     GEN -->|drops JSON files| VOL
     VOL -->|Auto Loader| SDP
@@ -61,11 +64,11 @@ flowchart LR
     SETUP -.->|provisions| VOL
     SETUP -.->|provisions| SDP
     SETUP -.->|provisions| JOB
-    SETUP -.->|provisions| DASH
-    SETUP -.->|provisions| GENIE
+    EXTRAS -.->|provisions| DASH
+    EXTRAS -.->|provisions| GENIE
 ```
 
-Attendees run `00_setup.py` once (which calls `src/setup_dev.py` under the hood) to provision the volume, pipeline, job, dashboard, and Genie space. They iterate by re-running `01_generate_files.py` to drop more files into the volume; Auto Loader picks them up incrementally through bronze → silver → gold, and the dashboard and Genie space pick up the new gold rows. Block B promotes the same pipeline + job to a managed `stg` environment via the DAB.
+Attendees run `00_setup.py` once (which calls `src/setup_dev.py` under the hood) to provision the data engineering core: volume, pipeline, job. They iterate by re-running `01_generate_files.py` to drop more files into the volume; Auto Loader picks them up incrementally through bronze → silver → gold. Block B promotes the same pipeline + job to a managed `stg` environment via the DAB. Optional Block C extras (dashboard via Genie Code, Genie space via `02_extras.py`) sit on top of the gold layer and aren't part of the core flow.
 
 ## Prerequisites
 
@@ -92,15 +95,15 @@ In the Databricks UI:
 
 Open `00_setup.py` at the top of the Git folder. Set the **catalog** widget to your Unity Catalog name, click **Run all**.
 
-The notebook creates everything for dev:
+The notebook creates the data engineering core:
 - Per-user schema `<CATALOG>.edetl_workshop_<your_short_username>` and a `raw_landing` volume
 - An initial batch of synthetic JSON files (~5 per fact source, ~5% deliberately malformed)
 - A serverless SDP pipeline `edetl-workshop-<your_short_username>` pointing at the .py files in this Git folder
 - A Lakeflow Job `edetl-workshop-<your_short_username>` with one task that runs the pipeline (used for the "Edit as YAML" demo in Block B)
-- An AI/BI dashboard with KPIs, monthly revenue, practice-area breakdown, top-25 matters table
-- A Genie space with 8 sample questions, wired to the silver/gold tables
 
-The notebook triggers an initial pipeline run and waits for it to finish (~3-5 min cold start), so the dashboard and Genie space have data to query when it returns. URLs for all assets print at the end.
+The notebook triggers an initial pipeline run and waits for it to finish (~3-5 min cold start). URLs for the pipeline and job print at the end.
+
+The dashboard and Genie space aren't created here — they're optional extras for Block C, kept separate to keep this notebook fast and the workshop focused on data engineering.
 
 Idempotent — re-run any time and it upgrades existing assets in place.
 
@@ -162,12 +165,36 @@ The full pattern: **workspace UI authors → Git is source of truth → Actions 
 
 Following the same skeleton, scaffold an `edetl` directory in your real repo: `databricks.yml`, a `resources/` folder, `src/pipelines/`. We do this together as a working session.
 
-### Block C — Demo extras (10-15 min)
+### Block C — Optional extras (10-15 min)
 
-Once stg has data:
+Skip this block entirely if you're tight on time — the workshop's data engineering story is complete after Block B. The extras showcase how the same gold tables drive AI/BI and Genie experiences.
 
-- **Dashboard:** import `src/dashboards/edetl_overview.lvdash.json` — see [src/dashboards/SETUP.md](src/dashboards/SETUP.md). KPIs, monthly revenue, practice-area breakdown, doc-action distribution, top-25 matters.
-- **Genie Space:** point a Genie Space at the silver + gold tables — see [src/genie/SETUP.md](src/genie/SETUP.md). Sample questions like "Which 10 matters generated the most billable revenue?" and "What's the breakdown of revenue by practice area?" come pre-loaded.
+#### Dashboard via Genie Code (showcases NL → dashboard)
+
+Open Genie Code in your workspace and paste the prompt below. Replace `<CATALOG>` with the catalog you used in `00_setup` and `<short>` with the username portion of your email (e.g. `fabien_vaucheret`).
+
+> Create a new AI/BI dashboard named `edetl-workshop overview` using the gold layer at `<CATALOG>.edetl_workshop_<short>`.
+>
+> Use these tables (inspect them for column names as needed):
+> - `gold_matter_summary` — one row per matter
+> - `gold_billable_hours_by_matter_month` — monthly billable hours per matter
+> - `gold_doc_activity_by_matter` — document audit event counts per matter
+> - `gold_matter_lifecycle` — open/close events per matter
+>
+> Build these widgets:
+> 1. KPI tiles row: total matters, total billable hours, total revenue, average revenue per matter
+> 2. Line chart: monthly billable revenue trend
+> 3. Bar chart: revenue by practice area, sorted descending
+> 4. Bar chart: document activity by event type
+> 5. Table: top 25 matters by revenue (matter id, client name, practice area, revenue)
+>
+> Save and publish the dashboard.
+
+If you'd rather import the canned dashboard JSON instead, see [src/dashboards/SETUP.md](src/dashboards/SETUP.md).
+
+#### Genie Space via `02_extras.py`
+
+Open `02_extras.py` at the top of the Git folder, set the catalog widget, **Run all**. Provisions a Genie space `edetl-workshop-<your_short_username>` wired to the silver/gold tables, pre-loaded with sample questions like *"Which 10 matters generated the most billable revenue?"* and *"What's the breakdown of revenue by practice area?"*.
 
 ## Pipeline data model
 

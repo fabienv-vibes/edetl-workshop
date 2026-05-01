@@ -1,13 +1,13 @@
 """One-shot dev environment setup for the edetl-workshop.
 
-Creates everything an attendee needs to start iterating in their workspace:
+Creates the data engineering core an attendee needs to start iterating:
   - schema `<catalog>.edetl_workshop_<your_short_username>`
   - volume `raw_landing` inside it
   - initial batch of synthetic JSON files (with bad data)
   - serverless SDP pipeline pointing at the Repos clone of this repo
   - Lakeflow Job that runs the pipeline (used for the "Edit as YAML" demo in Block B)
-  - AI/BI dashboard wired to the gold tables
-  - Genie space wired to the silver/gold tables
+
+Optional dashboard + Genie space provisioning lives in `setup_extras.py`.
 
 Re-running upgrades existing assets in place (idempotent by name).
 
@@ -26,14 +26,12 @@ Requires: pip install databricks-sdk faker
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 from pathlib import Path
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import NotFound
-from databricks.sdk.service.dashboards import Dashboard, LifecycleState
 from databricks.sdk.service.jobs import CronSchedule, JobSettings, PauseStatus, PipelineTask, Task
 from databricks.sdk.service.pipelines import FileLibrary, PipelineLibrary
 from faker import Faker
@@ -55,24 +53,6 @@ from generate_files import (  # noqa: E402
 
 REPO_NAME = "edetl-workshop"
 PIPELINE_FILES = ["bronze.py", "silver.py", "gold.py"]
-DASHBOARD_TEMPLATE = Path(__file__).parent / "dashboards" / "edetl_overview.lvdash.json"
-GENIE_TEMPLATE = Path(__file__).parent / "genie" / "space_template.json"
-GENIE_CATALOG_TOKEN = "__CATALOG__"
-GENIE_SCHEMA_TOKEN = "__SCHEMA__"
-
-
-def pick_warehouse_id(w: WorkspaceClient) -> str:
-    """Prefer a running warehouse; fall back to Serverless Starter; else first listed."""
-    warehouses = list(w.warehouses.list())
-    if not warehouses:
-        raise SystemExit("No SQL warehouses available in this workspace")
-
-    def sort_key(wh):
-        running = 0 if (wh.state and wh.state.value == "RUNNING") else 1
-        starter = 0 if (wh.name == "Serverless Starter Warehouse") else 1
-        return (running, starter, wh.name or "")
-
-    return sorted(warehouses, key=sort_key)[0].id
 
 
 def workspace_path_exists(w: WorkspaceClient, path: str) -> bool:
@@ -239,95 +219,6 @@ def create_or_update_job(w: WorkspaceClient, *, name: str, pipeline_id: str) -> 
     return resp.job_id
 
 
-def find_dashboard_id(w: WorkspaceClient, display_name: str) -> str | None:
-    for d in w.lakeview.list():
-        if d.display_name == display_name and d.lifecycle_state != LifecycleState.TRASHED:
-            return d.dashboard_id
-    return None
-
-
-def create_or_update_dashboard(
-    w: WorkspaceClient,
-    *,
-    display_name: str,
-    parent_path: str,
-    catalog: str,
-    schema: str,
-    warehouse_id: str,
-) -> tuple[str, str]:
-    serialized = DASHBOARD_TEMPLATE.read_text()
-    dashboard = Dashboard(
-        display_name=display_name,
-        parent_path=parent_path,
-        serialized_dashboard=serialized,
-        warehouse_id=warehouse_id,
-    )
-    existing = find_dashboard_id(w, display_name)
-    if existing:
-        print(f"  updating existing dashboard {existing}")
-        result = w.lakeview.update(
-            dashboard_id=existing,
-            dashboard=dashboard,
-            dataset_catalog=catalog,
-            dataset_schema=schema,
-        )
-    else:
-        print(f"  creating new dashboard {display_name}")
-        result = w.lakeview.create(
-            dashboard=dashboard,
-            dataset_catalog=catalog,
-            dataset_schema=schema,
-        )
-
-    print("  publishing dashboard")
-    w.lakeview.publish(dashboard_id=result.dashboard_id, warehouse_id=warehouse_id, embed_credentials=True)
-    return result.dashboard_id, result.path or ""
-
-
-def find_genie_space_id(w: WorkspaceClient, title: str) -> str | None:
-    resp = w.genie.list_spaces()
-    for s in (resp.spaces or []):
-        if s.title == title:
-            return s.space_id
-    return None
-
-
-def create_or_update_genie_space(
-    w: WorkspaceClient,
-    *,
-    title: str,
-    description: str,
-    catalog: str,
-    schema: str,
-    warehouse_id: str,
-) -> str:
-    template = GENIE_TEMPLATE.read_text()
-    serialized = template.replace(GENIE_CATALOG_TOKEN, catalog).replace(GENIE_SCHEMA_TOKEN, schema)
-    # Validate it's still parseable JSON after substitution
-    json.loads(serialized)
-
-    existing = find_genie_space_id(w, title)
-    if existing:
-        print(f"  updating existing Genie space {existing}")
-        w.genie.update_space(
-            space_id=existing,
-            title=title,
-            description=description,
-            warehouse_id=warehouse_id,
-            serialized_space=serialized,
-        )
-        return existing
-
-    print(f"  creating new Genie space {title}")
-    result = w.genie.create_space(
-        warehouse_id=warehouse_id,
-        serialized_space=serialized,
-        title=title,
-        description=description,
-    )
-    return result.space_id
-
-
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--catalog", required=True, help="Unity Catalog name (must exist; need CREATE_SCHEMA + CREATE_VOLUME)")
@@ -357,12 +248,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"asset name: {asset_name}")
 
     # ── Schema + volume ────────────────────────────────────────────────────
-    print("\n[1/7] Schema + volume")
+    print("\n[1/5] Schema + volume")
     ensure_schema(w, args.catalog, schema)
     ensure_volume(w, args.catalog, schema, VOLUME_NAME)
 
     # ── Initial files ──────────────────────────────────────────────────────
-    print("\n[2/7] Initial synthetic files")
+    print("\n[2/5] Initial synthetic files")
     cfg = GeneratorConfig(
         catalog=args.catalog,
         schema=schema,
@@ -378,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
     write_fact_batch(w, cfg, fake, matter_ids, user_ids, doc_ids)
 
     # ── Verify Git folder clone ────────────────────────────────────────────
-    print("\n[3/7] Verify Git folder clone")
+    print("\n[3/5] Verify Git folder clone")
     library_paths, base = resolve_pipeline_paths(w, email)
     if not library_paths:
         print("  ERROR: required pipeline files are missing in your workspace.")
@@ -391,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  found all 3 pipeline files under {base}/")
 
     # ── SDP pipeline ───────────────────────────────────────────────────────
-    print("\n[4/7] SDP pipeline")
+    print("\n[4/5] SDP pipeline")
     pipeline_id = create_or_update_pipeline(
         w,
         name=asset_name,
@@ -407,35 +298,8 @@ def main(argv: list[str] | None = None) -> int:
         run_pipeline_and_wait(w, pipeline_id, timeout_s=600)
 
     # ── Job ────────────────────────────────────────────────────────────────
-    print("\n[5/7] Lakeflow Job (for the 'Edit as YAML' demo)")
+    print("\n[5/5] Lakeflow Job (for the 'Edit as YAML' demo)")
     job_id = create_or_update_job(w, name=asset_name, pipeline_id=pipeline_id)
-
-    # ── Dashboard ──────────────────────────────────────────────────────────
-    print("\n[6/7] Dashboard")
-    warehouse_id = pick_warehouse_id(w)
-    dashboard_id, dashboard_path = create_or_update_dashboard(
-        w,
-        display_name=asset_name,
-        parent_path=f"/Workspace/Users/{email}",
-        catalog=args.catalog,
-        schema=schema,
-        warehouse_id=warehouse_id,
-    )
-
-    # ── Genie space ────────────────────────────────────────────────────────
-    print("\n[7/7] Genie space")
-    description = (
-        "Natural-language exploration of legal practice data: matters, billable hours, "
-        "and document activity. Backed by the edetl-workshop SDP gold layer."
-    )
-    space_id = create_or_update_genie_space(
-        w,
-        title=asset_name,
-        description=description,
-        catalog=args.catalog,
-        schema=schema,
-        warehouse_id=warehouse_id,
-    )
 
     # ── Summary ────────────────────────────────────────────────────────────
     host = w.config.host.rstrip("/")
@@ -443,8 +307,9 @@ def main(argv: list[str] | None = None) -> int:
     print("done. open these in your workspace:")
     print(f"  pipeline:  {host}/pipelines/{pipeline_id}")
     print(f"  job:       {host}/jobs/{job_id}")
-    print(f"  dashboard: {host}/sql/dashboardsv3/{dashboard_id}")
-    print(f"  genie:     {host}/genie/rooms/{space_id}")
+    print("\nOptional Block C extras:")
+    print("  - Dashboard: copy/paste the Genie Code prompt from the README into the workspace")
+    print("  - Genie space: open `02_extras.py` and Run all")
     print("=" * 70)
     return 0
 

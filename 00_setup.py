@@ -2,20 +2,22 @@
 # MAGIC %md
 # MAGIC # edetl-workshop — dev setup
 # MAGIC
-# MAGIC Provisions everything you need to start iterating, in one shot:
+# MAGIC Provisions the data engineering core in one shot:
 # MAGIC
 # MAGIC - per-user schema and `raw_landing` UC volume
 # MAGIC - initial batch of synthetic JSON files (with ~5% deliberately bad rows)
 # MAGIC - serverless SDP pipeline pointing at `src/pipelines/` in this Git folder
 # MAGIC - Lakeflow Job that runs the pipeline (used for the "Edit as YAML" demo in Block B)
-# MAGIC - AI/BI dashboard
-# MAGIC - Genie space
+# MAGIC
+# MAGIC **Optional Block C extras** (not run here, to keep this notebook fast):
+# MAGIC - Dashboard — provisioned via a Genie Code prompt (see README)
+# MAGIC - Genie space — provisioned by `02_extras.py`
 # MAGIC
 # MAGIC **How to run:** run cell 1 below to create the `catalog` widget, set it to a Unity Catalog you have
 # MAGIC `USE_CATALOG`, `CREATE_SCHEMA`, and `CREATE_VOLUME` on, then **Run all** from the top.
 # MAGIC
 # MAGIC The names of resources are derived from your email — schema `edetl_workshop_<short_username>`,
-# MAGIC and pipeline / job / dashboard / Genie space all named `edetl-workshop-<short_username>`.
+# MAGIC and pipeline / job both named `edetl-workshop-<short_username>`.
 # MAGIC The preview cell below prints the exact names before anything is created.
 # MAGIC
 # MAGIC Idempotent — re-run any time and it upgrades existing assets in place.
@@ -59,8 +61,6 @@ print(f"  Schema:    {catalog}.{schema}")
 print(f"  Volume:    {catalog}.{schema}.{VOLUME_NAME}")
 print(f"  Pipeline:  {asset_name}")
 print(f"  Job:       {asset_name}")
-print(f"  Dashboard: {asset_name}")
-print(f"  Genie:     {asset_name}")
 
 # COMMAND ----------
 
