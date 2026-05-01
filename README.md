@@ -37,31 +37,74 @@ edetl-workshop/
     └── deploy.yml                  # Deploy to stg on push to main
 ```
 
-## Prerequisites
+### Architecture
 
-1. A Unity Catalog you can `USE_CATALOG`, `CREATE_SCHEMA`, and `CREATE_VOLUME` on
-2. **Databricks CLI** v0.240+ — [install](https://docs.databricks.com/dev-tools/cli/install.html)
-3. **Python 3.10+** on your laptop for the generator, setup script, and tests
+```mermaid
+flowchart LR
+    GEN["generate_files.py<br>synthetic JSON"]
+    SETUP["setup_dev.py<br>provisions everything"]
+    VOL[("UC Volume<br>raw_landing")]
+    SDP["SDP Pipeline<br>bronze → silver → gold<br>(@dlt.expect_or_drop)"]
+    JOB["Lakeflow Job<br>hourly, paused"]
+    DASH["AI/BI Dashboard<br>KPIs + charts"]
+    GENIE["Genie Space<br>NL → SQL"]
 
-```bash
-pip install databricks-sdk faker pytest
-databricks auth login --host https://<your-workspace>
+    GEN -->|drops JSON files| VOL
+    VOL -->|Auto Loader| SDP
+    JOB -->|runs| SDP
+    SDP -->|gold tables| DASH
+    SDP -->|gold tables| GENIE
+    SETUP -.->|provisions| VOL
+    SETUP -.->|provisions| SDP
+    SETUP -.->|provisions| JOB
+    SETUP -.->|provisions| DASH
+    SETUP -.->|provisions| GENIE
 ```
 
-`setup_dev.py` and `generate_files.py` run from **your local terminal** — they use the Databricks SDK with whatever profile `databricks auth login` set up. (They also work inside a Databricks notebook if you'd rather.)
+`setup_dev.py` provisions the volume, pipeline, job, dashboard, and Genie space in one shot. Attendees iterate by re-running `generate_files.py` to drop more files into the volume; Auto Loader picks them up incrementally through bronze → silver → gold, then the dashboard and Genie space pick up the new gold rows. Block B promotes the same pipeline + job to a managed `stg` environment via the DAB.
+
+## Prerequisites
+
+**On your laptop**, before the workshop starts:
+
+1. Clone this repo locally — `setup_dev.py` and `generate_files.py` are run from this directory:
+   ```bash
+   git clone https://github.com/fabienv-vibes/edetl-workshop
+   cd edetl-workshop
+   ```
+2. **Python 3.10+** with the workshop's pip dependencies:
+   ```bash
+   pip install databricks-sdk faker pytest
+   ```
+3. **Databricks CLI** v0.240+ ([install](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/cli/install)), authenticated to your workspace:
+   ```bash
+   databricks auth login --host https://<your-workspace>
+   ```
+
+**In your workspace:**
+
+- A Unity Catalog you can `USE_CATALOG`, `CREATE_SCHEMA`, and `CREATE_VOLUME` on.
+
+`setup_dev.py` and `generate_files.py` run from **your local terminal in the cloned directory** above. They drive the workspace remotely via the Databricks SDK using whatever profile `databricks auth login` configured.
 
 ## Workshop flow
 
 ### Block A — DE foundations (30 min, hands-on)
 
-#### 1. Clone the repo into your workspace
+Make sure you've completed the [Prerequisites](#prerequisites) before starting Block A.
+
+#### 1. Clone the repo into your workspace as a Git folder
+
+This is a *second* clone, separate from the local one in Prerequisites. The workspace clone is what the SDP pipeline references for its `bronze.py`/`silver.py`/`gold.py` libraries; the local clone is where you run the CLI scripts from.
 
 In the Databricks UI:
 - **Sidebar → Workspace** and browse to your home folder (`/Workspace/Users/<your_email>/`)
 - Click **Create → Git folder**, paste the URL `https://github.com/fabienv-vibes/edetl-workshop`, click **Create Git folder**
 - You'll land at `/Workspace/Users/<your_email>/edetl-workshop/`
 
-#### 2. Run the dev setup script
+#### 2. Run the dev setup script (from your local terminal)
+
+From your **local** clone of the repo (the one in Prerequisites — not the workspace clone), run:
 
 ```bash
 python src/setup_dev.py --catalog <CATALOG>
@@ -70,18 +113,18 @@ python src/setup_dev.py --catalog <CATALOG>
 That single command creates everything for dev:
 - Per-user schema `<CATALOG>.edetl_workshop_<your_short_username>` and a `raw_landing` volume
 - An initial batch of synthetic JSON files (~5 per fact source, ~5% deliberately malformed)
-- A serverless SDP pipeline `edetl-workshop-<your_short_username>` pointing at the .py files in your Repos clone
+- A serverless SDP pipeline `edetl-workshop-<your_short_username>` pointing at the .py files in your workspace Git folder
 - A Lakeflow Job `edetl-workshop-<your_short_username>` with one task that runs the pipeline (used for the "Edit as YAML" demo in Block B)
 - An AI/BI dashboard with KPIs, monthly revenue, practice-area breakdown, top-25 matters table
 - A Genie space with 8 sample questions, wired to the silver/gold tables
 
-The script triggers an initial pipeline run and waits for it to finish (~3-5 min cold start), so the dashboard and Genie space have data to query when it returns. URLs for all three are printed at the end.
+The script triggers an initial pipeline run and waits for it to finish (~3-5 min cold start), so the dashboard and Genie space have data to query when it returns. URLs for all assets are printed at the end.
 
 It's idempotent — re-run any time and it upgrades existing assets in place.
 
 #### 3. Iterate in the SDP editor
 
-Open the pipeline URL the script printed. The SDP editor lets you walk the bronze/silver/gold code, edit any of the .py files (they live in your Repos clone), and hit Run to see your changes. Auto Loader's checkpoint makes re-runs incremental.
+Open the pipeline URL the script printed. The SDP editor lets you walk the bronze/silver/gold code, edit any of the .py files (they live in your workspace Git folder), and hit Run to see your changes. Auto Loader's checkpoint makes re-runs incremental.
 
 #### 4. Drop more files, re-run
 
@@ -108,8 +151,8 @@ Compare the generated YAML against `resources/ingestion_job.yml` already in this
 
 #### 2. Walk the bundle in the workspace bundle editor (~10 min)
 
-- Create a Git folder pointing at this repo (Workspace → **Git folders → Add folder**)
-- Open `databricks.yml` in the workspace bundle editor
+- The Git folder you cloned in Block A already contains the bundle
+- Navigate to `/Workspace/Users/<your_email>/edetl-workshop/` and open `databricks.yml` in the workspace bundle editor
 - Walk the structure together:
   - `databricks.yml` — single target `stg`, required `catalog` variable
   - `resources/storage.yml` — schema + volume
