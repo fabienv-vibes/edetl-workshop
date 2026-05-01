@@ -11,8 +11,10 @@ Creates everything an attendee needs to start iterating in their workspace:
 
 Re-running upgrades existing assets in place (idempotent by name).
 
-Prerequisite: clone this repo into Workspace -> Repos first. Setup needs the
-.py files at `/Workspace/Repos/<your_email>/edetl-workshop/src/pipelines/`.
+Prerequisite: clone this repo as a Git folder in your workspace first
+(Workspace -> Create -> Git folder). Setup needs the .py files at either:
+  /Workspace/Users/<your_email>/edetl-workshop/src/pipelines/   (new default)
+  /Workspace/Repos/<your_email>/edetl-workshop/src/pipelines/   (legacy)
 
 Usage:
     python src/setup_dev.py --catalog <UC_CATALOG>
@@ -81,9 +83,30 @@ def workspace_path_exists(w: WorkspaceClient, path: str) -> bool:
         return False
 
 
-def repos_pipeline_paths(email: str) -> list[str]:
-    base = f"/Workspace/Repos/{email}/{REPO_NAME}/src/pipelines"
-    return [f"{base}/{f}" for f in PIPELINE_FILES]
+def candidate_repo_bases(email: str) -> list[str]:
+    """Possible parent paths for the cloned repo, in preference order.
+
+    The new Git folder UI ("Workspace -> Create -> Git folder") clones into
+    /Workspace/Users/<email>/<repo>; the legacy "Repos" UI cloned into
+    /Workspace/Repos/<email>/<repo>. Both still work; we accept either.
+    """
+    return [
+        f"/Workspace/Users/{email}/{REPO_NAME}",
+        f"/Workspace/Repos/{email}/{REPO_NAME}",
+    ]
+
+
+def resolve_pipeline_paths(w: WorkspaceClient, email: str) -> tuple[list[str], str | None]:
+    """Find the workspace clone and return (library_paths, base_path).
+
+    Returns (library_paths, base) for the first base that contains all
+    PIPELINE_FILES. If none match, returns ([], None) — caller should error.
+    """
+    for base in candidate_repo_bases(email):
+        paths = [f"{base}/src/pipelines/{f}" for f in PIPELINE_FILES]
+        if all(workspace_path_exists(w, p) for p in paths):
+            return paths, base
+    return [], None
 
 
 def find_pipeline_id(w: WorkspaceClient, name: str) -> str | None:
@@ -354,19 +377,18 @@ def main(argv: list[str] | None = None) -> int:
     write_matters_master_once(w, cfg, fake, matter_ids, user_ids)
     write_fact_batch(w, cfg, fake, matter_ids, user_ids, doc_ids)
 
-    # ── Verify Repos clone ─────────────────────────────────────────────────
-    print("\n[3/7] Verify Repos clone")
-    library_paths = repos_pipeline_paths(email)
-    missing = [p for p in library_paths if not workspace_path_exists(w, p)]
-    if missing:
-        print("  ERROR: required pipeline files are missing in your Workspace Repos.")
-        for p in missing:
-            print(f"    {p}")
-        print("  Clone the repo first via Workspace -> Repos -> Add repo:")
+    # ── Verify Git folder clone ────────────────────────────────────────────
+    print("\n[3/7] Verify Git folder clone")
+    library_paths, base = resolve_pipeline_paths(w, email)
+    if not library_paths:
+        print("  ERROR: required pipeline files are missing in your workspace.")
+        print("  Clone the repo first via Workspace -> Create -> Git folder:")
         print(f"    https://github.com/fabienv-vibes/{REPO_NAME}")
-        print(f"  Expected location: /Workspace/Repos/{email}/{REPO_NAME}/")
+        print("  Expected location (one of):")
+        for candidate in candidate_repo_bases(email):
+            print(f"    {candidate}/src/pipelines/")
         return 1
-    print(f"  found all 3 pipeline files under /Workspace/Repos/{email}/{REPO_NAME}/")
+    print(f"  found all 3 pipeline files under {base}/")
 
     # ── SDP pipeline ───────────────────────────────────────────────────────
     print("\n[4/7] SDP pipeline")

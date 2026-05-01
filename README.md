@@ -57,8 +57,9 @@ databricks auth login --host https://<your-workspace>
 #### 1. Clone the repo into your workspace
 
 In the Databricks UI:
-- **Sidebar → Repos → Add repo** → URL: `https://github.com/fabienv-vibes/edetl-workshop`
-- You'll land at `/Workspace/Repos/<your_email>/edetl-workshop/`.
+- **Sidebar → Workspace** and browse to your home folder (`/Workspace/Users/<your_email>/`)
+- Click **Create → Git folder**, paste the URL `https://github.com/fabienv-vibes/edetl-workshop`, click **Create Git folder**
+- You'll land at `/Workspace/Users/<your_email>/edetl-workshop/`
 
 #### 2. Run the dev setup script
 
