@@ -2,34 +2,38 @@
 
 Hands-on Databricks data engineering workshop repo. Generates synthetic legal-domain JSON files, ingests them with Auto Loader through a Spark Declarative Pipeline (SDP), produces a star-schema gold layer, and ships the whole thing as a Databricks Asset Bundle (DAB) with GitHub Actions CI/CD.
 
-The intended workflow:
-- **Dev** — clone this repo into a Databricks Git folder, run `setup_dev.py` once to provision pipeline + job + dashboard + Genie space, then iterate in the SDP editor.
-- **Stg** — promote to a managed environment via DABs. The workshop demos authoring the bundle YAML from the workspace UI ("Edit as YAML"), then deploying via CLI or the workspace bundle editor.
+The intended workflow — entirely from your Databricks workspace, no local setup:
+- **Dev** — clone this repo as a Git folder in your workspace, open `00_setup.py`, set the catalog widget, **Run all**. You get a per-user schema, a serverless SDP pipeline, a Lakeflow Job, an AI/BI dashboard, and a Genie space wired up.
+- **Stg** — promote to a managed environment via DABs, authored from the workspace bundle editor ("Edit as YAML"), deployed via the workspace deploy button or CLI.
+
+For production engineering teams who want CLI + GitHub Actions CI/CD, see [Production setup](#production-setup) below — typically a follow-up engagement with your DABs SA / STS team after the workshop.
 
 ## What's in here
 
 ```
 edetl-workshop/
+├── 00_setup.py                     # Workshop entry point: dev provisioning notebook
+├── 01_generate_files.py            # Notebook: drop more files into your raw_landing volume
 ├── databricks.yml                  # Bundle config (single target: stg)
 ├── resources/
 │   ├── storage.yml                 # stg schema + raw_landing volume
 │   ├── ingestion_pipeline.yml      # Serverless SDP pipeline resource
 │   └── ingestion_job.yml           # Lakeflow Job that runs the pipeline
 ├── src/
-│   ├── setup_dev.py                # One-shot dev setup: schema + volume + files + pipeline + job + dashboard + genie
+│   ├── setup_dev.py                # Underlying setup logic (called by 00_setup.py)
 │   ├── pipelines/
 │   │   ├── bronze.py               # Auto Loader streaming tables (4 sources)
 │   │   ├── silver.py               # Typed + expectations
 │   │   ├── gold.py                 # Aggregates + star-schema join
 │   │   └── _transforms.py          # Pure-Python helpers (tested)
 │   ├── generator/
-│   │   └── generate_files.py       # Synthetic JSON generator (with bad data)
+│   │   └── generate_files.py       # Underlying file generator (called by 01_generate_files.py)
 │   ├── dashboards/
 │   │   ├── edetl_overview.lvdash.json   # AI/BI dashboard JSON (importable)
-│   │   └── SETUP.md                # Manual import path (preferred: setup_dev.py)
+│   │   └── SETUP.md                # Manual import path (preferred: 00_setup.py)
 │   └── genie/
 │       ├── space_template.json     # Genie space serialized payload (placeholders for catalog/schema)
-│       └── SETUP.md                # Manual setup path (preferred: setup_dev.py)
+│       └── SETUP.md                # Manual setup path (preferred: 00_setup.py)
 ├── tests/
 │   └── test_transforms.py          # pytest unit tests
 └── .github/workflows/
@@ -61,78 +65,52 @@ flowchart LR
     SETUP -.->|provisions| GENIE
 ```
 
-`setup_dev.py` provisions the volume, pipeline, job, dashboard, and Genie space in one shot. Attendees iterate by re-running `generate_files.py` to drop more files into the volume; Auto Loader picks them up incrementally through bronze → silver → gold, then the dashboard and Genie space pick up the new gold rows. Block B promotes the same pipeline + job to a managed `stg` environment via the DAB.
+Attendees run `00_setup.py` once (which calls `src/setup_dev.py` under the hood) to provision the volume, pipeline, job, dashboard, and Genie space. They iterate by re-running `01_generate_files.py` to drop more files into the volume; Auto Loader picks them up incrementally through bronze → silver → gold, and the dashboard and Genie space pick up the new gold rows. Block B promotes the same pipeline + job to a managed `stg` environment via the DAB.
 
 ## Prerequisites
 
-**On your laptop**, before the workshop starts:
+The workshop runs entirely from your Databricks workspace. The only thing you need:
 
-1. Clone this repo locally — `setup_dev.py` and `generate_files.py` are run from this directory:
-   ```bash
-   git clone https://github.com/fabienv-vibes/edetl-workshop
-   cd edetl-workshop
-   ```
-2. **Python 3.10+** with the workshop's pip dependencies:
-   ```bash
-   pip install databricks-sdk faker pytest
-   ```
-3. **Databricks CLI** v0.240+ ([install](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/cli/install)), authenticated to your workspace:
-   ```bash
-   databricks auth login --host https://<your-workspace>
-   ```
+- A **Unity Catalog** you have `USE_CATALOG`, `CREATE_SCHEMA`, and `CREATE_VOLUME` on.
 
-**In your workspace:**
+No local clone, no CLI install, no `pip install` — `00_setup.py` handles dependencies via `%pip` and uses your workspace identity for auth.
 
-- A Unity Catalog you can `USE_CATALOG`, `CREATE_SCHEMA`, and `CREATE_VOLUME` on.
-
-`setup_dev.py` and `generate_files.py` run from **your local terminal in the cloned directory** above. They drive the workspace remotely via the Databricks SDK using whatever profile `databricks auth login` configured.
+> Want CLI + GitHub Actions CI/CD? See [Production setup](#production-setup) below. That's typically a follow-up engagement with your Databricks SA / STS team after the workshop.
 
 ## Workshop flow
 
 ### Block A — DE foundations (30 min, hands-on)
 
-Make sure you've completed the [Prerequisites](#prerequisites) before starting Block A.
-
 #### 1. Clone the repo into your workspace as a Git folder
-
-This is a *second* clone, separate from the local one in Prerequisites. The workspace clone is what the SDP pipeline references for its `bronze.py`/`silver.py`/`gold.py` libraries; the local clone is where you run the CLI scripts from.
 
 In the Databricks UI:
 - **Sidebar → Workspace** and browse to your home folder (`/Workspace/Users/<your_email>/`)
 - Click **Create → Git folder**, paste the URL `https://github.com/fabienv-vibes/edetl-workshop`, click **Create Git folder**
 - You'll land at `/Workspace/Users/<your_email>/edetl-workshop/`
 
-#### 2. Run the dev setup script (from your local terminal)
+#### 2. Run the dev setup notebook
 
-From your **local** clone of the repo (the one in Prerequisites — not the workspace clone), run:
+Open `00_setup.py` at the top of the Git folder. Set the **catalog** widget to your Unity Catalog name, click **Run all**.
 
-```bash
-python src/setup_dev.py --catalog <CATALOG>
-```
-
-That single command creates everything for dev:
+The notebook creates everything for dev:
 - Per-user schema `<CATALOG>.edetl_workshop_<your_short_username>` and a `raw_landing` volume
 - An initial batch of synthetic JSON files (~5 per fact source, ~5% deliberately malformed)
-- A serverless SDP pipeline `edetl-workshop-<your_short_username>` pointing at the .py files in your workspace Git folder
+- A serverless SDP pipeline `edetl-workshop-<your_short_username>` pointing at the .py files in this Git folder
 - A Lakeflow Job `edetl-workshop-<your_short_username>` with one task that runs the pipeline (used for the "Edit as YAML" demo in Block B)
 - An AI/BI dashboard with KPIs, monthly revenue, practice-area breakdown, top-25 matters table
 - A Genie space with 8 sample questions, wired to the silver/gold tables
 
-The script triggers an initial pipeline run and waits for it to finish (~3-5 min cold start), so the dashboard and Genie space have data to query when it returns. URLs for all assets are printed at the end.
+The notebook triggers an initial pipeline run and waits for it to finish (~3-5 min cold start), so the dashboard and Genie space have data to query when it returns. URLs for all assets print at the end.
 
-It's idempotent — re-run any time and it upgrades existing assets in place.
+Idempotent — re-run any time and it upgrades existing assets in place.
 
 #### 3. Iterate in the SDP editor
 
-Open the pipeline URL the script printed. The SDP editor lets you walk the bronze/silver/gold code, edit any of the .py files (they live in your workspace Git folder), and hit Run to see your changes. Auto Loader's checkpoint makes re-runs incremental.
+Open the pipeline URL the notebook printed. The SDP editor lets you walk the bronze/silver/gold code, edit any of the .py files (they live in this Git folder), and hit Run to see your changes. Auto Loader's checkpoint makes re-runs incremental.
 
 #### 4. Drop more files, re-run
 
-```bash
-python src/generator/generate_files.py --catalog <CATALOG>
-```
-
-Then hit Run on the pipeline again. Bronze grows by exactly the new file count, silver applies expectations and drops the bad rows, gold materialized views recompute. The DAG looks like a star: `silver_matters_master` + 3 silver fact aggregates feed `gold_matter_summary`.
+Open `01_generate_files.py`, set the catalog widget, click **Run all**. Then hit Run on the pipeline again. Bronze grows by exactly the new file count, silver applies expectations and drops the bad rows, gold materialized views recompute. The DAG looks like a star: `silver_matters_master` + 3 silver fact aggregates feed `gold_matter_summary`.
 
 ### Block B — CI/CD working session (45 min)
 
@@ -165,23 +143,11 @@ See [Collaborate on bundles in the workspace](https://learn.microsoft.com/en-us/
 
 #### 3. Promote to stg (~10 min)
 
-Two equivalent paths produce the same `[stg] edetl-edetl_stg` pipeline + hourly job. Pick one for the demo.
+From the workspace bundle editor, deploy the bundle to the `stg` target. After the deploy, navigate to **Jobs & Pipelines** to confirm `[stg] edetl-edetl_stg` (pipeline) and the hourly job are live.
 
-**(a) From the workspace bundle editor**: deploy button on the bundle, target `stg`.
+To seed the staging volume, open `01_generate_files.py`, set `schema = edetl_stg`, and **Run all**. Then trigger the job from the workspace UI. After the run, `<CATALOG>.edetl_stg` has the same bronze/silver/gold tables, populated.
 
-**(b) From the CLI**:
-
-```bash
-databricks bundle validate -t stg --var "catalog=<CATALOG>"
-databricks bundle deploy   -t stg --var "catalog=<CATALOG>"
-
-# Drop files into the new stg volume
-python src/generator/generate_files.py --catalog <CATALOG> --schema edetl_stg
-
-databricks bundle run ingestion_job -t stg --var "catalog=<CATALOG>"
-```
-
-After the run, `<CATALOG>.edetl_stg` has the same bronze/silver/gold tables, populated.
+For the same flow from the CLI (validate / deploy / run), see [Production setup](#production-setup).
 
 #### 4. Walk the GitHub Actions (~10 min)
 
@@ -217,6 +183,40 @@ doc_audit JSON          → bronze_doc_audit         → silver_doc_audit       
 ```
 
 All silver tables apply `@dlt.expect_or_drop`. The generator's `--bad-data-pct` flag (default 5%) deliberately injects rows that fail those checks (negative hours, unknown event types, missing matter_id) so the SDP UI shows real expectation drops.
+
+## Production setup
+
+The notebook-driven workflow above is the easiest way to run the workshop and what most teams use day-to-day. For data engineering teams that want CLI-driven local development plus GitHub Actions CI/CD, here's the additional setup.
+
+**On your laptop:**
+
+1. Clone this repo locally:
+   ```bash
+   git clone https://github.com/fabienv-vibes/edetl-workshop && cd edetl-workshop
+   ```
+2. Python 3.10+ with the workshop dependencies:
+   ```bash
+   pip install databricks-sdk faker pytest
+   ```
+3. Databricks CLI v0.240+ ([install](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/cli/install)), authenticated:
+   ```bash
+   databricks auth login --host https://<your-workspace>
+   ```
+
+The scripts the notebooks call (`src/setup_dev.py`, `src/generator/generate_files.py`) work from your local terminal too — they use the SDK with whatever profile `databricks auth login` configured.
+
+**Block B's stg promotion via CLI:**
+
+```bash
+databricks bundle validate -t stg --var "catalog=<CATALOG>"
+databricks bundle deploy   -t stg --var "catalog=<CATALOG>"
+python src/generator/generate_files.py --catalog <CATALOG> --schema edetl_stg
+databricks bundle run ingestion_job -t stg --var "catalog=<CATALOG>"
+```
+
+**GitHub Actions CI/CD:** see `.github/workflows/pr-check.yml` (PR: pytest + bundle validate) and `.github/workflows/deploy.yml` (push to main: bundle deploy + optional run). Repo secrets needed: `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, `DATABRICKS_CLIENT_SECRET`, `WORKSHOP_CATALOG`.
+
+> **For a tailored production rollout**, reach out to your Databricks Solutions Architect or Specialist Technical Services (STS) team. They can help with service principal setup, secret management, environment promotion patterns, and CI/CD wiring beyond what this workshop covers.
 
 ## Run tests
 
