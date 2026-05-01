@@ -3,8 +3,8 @@
 Hands-on Databricks data engineering workshop repo. Generates synthetic legal-domain JSON files, ingests them with Auto Loader through a Spark Declarative Pipeline (SDP), produces a star-schema gold layer, and ships the whole thing as a Databricks Asset Bundle (DAB) with GitHub Actions CI/CD.
 
 The intended workflow:
-- **Dev** — clone this repo into a Databricks Git folder, create your own pipeline directly from the SDP editor, iterate. No DAB.
-- **Stg** — `databricks bundle deploy -t stg` ships the same code as a managed pipeline + scheduled job.
+- **Dev** — clone this repo into a Databricks Git folder, run `setup_dev.py` once to provision pipeline + job + dashboard + Genie space, then iterate in the SDP editor.
+- **Stg** — promote to a managed environment via DABs. The workshop demos authoring the bundle YAML from the workspace UI ("Edit as YAML"), then deploying via CLI or the workspace bundle editor.
 
 ## What's in here
 
@@ -16,7 +16,7 @@ edetl-workshop/
 │   ├── ingestion_pipeline.yml      # Serverless SDP pipeline resource
 │   └── ingestion_job.yml           # Lakeflow Job that runs the pipeline
 ├── src/
-│   ├── setup_dev.py                # One-shot dev setup: schema + volume + files + pipeline + dashboard + genie
+│   ├── setup_dev.py                # One-shot dev setup: schema + volume + files + pipeline + job + dashboard + genie
 │   ├── pipelines/
 │   │   ├── bronze.py               # Auto Loader streaming tables (4 sources)
 │   │   ├── silver.py               # Typed + expectations
@@ -70,6 +70,7 @@ That single command creates everything for dev:
 - Per-user schema `<CATALOG>.edetl_workshop_<your_short_username>` and a `raw_landing` volume
 - An initial batch of synthetic JSON files (~5 per fact source, ~5% deliberately malformed)
 - A serverless SDP pipeline `edetl-workshop-<your_short_username>` pointing at the .py files in your Repos clone
+- A Lakeflow Job `edetl-workshop-<your_short_username>` with one task that runs the pipeline (used for the "Edit as YAML" demo in Block B)
 - An AI/BI dashboard with KPIs, monthly revenue, practice-area breakdown, top-25 matters table
 - A Genie space with 8 sample questions, wired to the silver/gold tables
 
@@ -91,20 +92,40 @@ Then hit Run on the pipeline again. Bronze grows by exactly the new file count, 
 
 ### Block B — CI/CD working session (45 min)
 
-The same code can be deployed as a managed pipeline via the DAB.
+The same pipeline can be promoted to a managed environment via a **Databricks Asset Bundle (DAB)**. We let the workspace UI generate the bundle YAML from the dev job we already have, then use that as the source of truth for CI/CD.
 
-#### 1. Walk the DAB structure
+#### 1. Generate bundle YAML from your dev job — the "Edit as YAML" demo (~5 min)
 
-```
-databricks.yml          # one target (stg), required catalog variable
-resources/storage.yml   # creates edetl_stg schema + raw_landing volume
-resources/ingestion_pipeline.yml  # serverless SDP pipeline resource
-resources/ingestion_job.yml       # Lakeflow Job, hourly (paused) schedule
-```
+In the workspace UI:
+- Open the job `setup_dev.py` created: **Jobs & Pipelines → `edetl-workshop-<short>`**
+- Click the kebab menu (⋮) next to **Run now** → **Edit as YAML**
+- Bundle-shaped YAML appears, ready to drop into a `databricks.yml` resources file
 
-The `mode: production` target makes the pipeline SP-owned, locks names, runs as the deployer.
+This is the GA "Collaborate on bundles in the workspace" feature. See [Migrate existing resources to a bundle](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/bundles/migrate-resources) for the canonical doc.
 
-#### 2. Validate, deploy, run
+Compare the generated YAML against `resources/ingestion_job.yml` already in this repo — same shape. The bundle is the codified version of what you've been clicking on.
+
+#### 2. Walk the bundle in the workspace bundle editor (~10 min)
+
+- Create a Git folder pointing at this repo (Workspace → **Git folders → Add folder**)
+- Open `databricks.yml` in the workspace bundle editor
+- Walk the structure together:
+  - `databricks.yml` — single target `stg`, required `catalog` variable
+  - `resources/storage.yml` — schema + volume
+  - `resources/ingestion_pipeline.yml` — serverless SDP pipeline
+  - `resources/ingestion_job.yml` — Lakeflow Job (matches the YAML you exported in step 1)
+
+The bundle editor lints, validates, and offers schema-aware IntelliSense — no need to memorise the YAML structure. The `mode: production` target makes the pipeline service-principal-owned, locks names, and runs as the deployer.
+
+See [Collaborate on bundles in the workspace](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/bundles/workspace) for the full feature overview.
+
+#### 3. Promote to stg (~10 min)
+
+Two equivalent paths produce the same `[stg] edetl-edetl_stg` pipeline + hourly job. Pick one for the demo.
+
+**(a) From the workspace bundle editor**: deploy button on the bundle, target `stg`.
+
+**(b) From the CLI**:
 
 ```bash
 databricks bundle validate -t stg --var "catalog=<CATALOG>"
@@ -118,14 +139,16 @@ databricks bundle run ingestion_job -t stg --var "catalog=<CATALOG>"
 
 After the run, `<CATALOG>.edetl_stg` has the same bronze/silver/gold tables, populated.
 
-#### 3. Walk the GitHub Actions
+#### 4. Walk the GitHub Actions (~10 min)
 
 - `.github/workflows/pr-check.yml` — on PR: pytest + `bundle validate -t stg`
 - `.github/workflows/deploy.yml` — on push to main: `bundle deploy -t stg`, then optional `bundle run`
 
 Repo secrets needed: `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, `DATABRICKS_CLIENT_SECRET`, `WORKSHOP_CATALOG`.
 
-#### 4. Live-stub your own `edetl` repo
+The full pattern: **workspace UI authors → Git is source of truth → Actions deploy to production**.
+
+#### 5. Live-stub your own `edetl` repo (~10 min)
 
 Following the same skeleton, scaffold an `edetl` directory in your real repo: `databricks.yml`, a `resources/` folder, `src/pipelines/`. We do this together as a working session.
 

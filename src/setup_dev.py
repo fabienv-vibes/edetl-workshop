@@ -5,6 +5,7 @@ Creates everything an attendee needs to start iterating in their workspace:
   - volume `raw_landing` inside it
   - initial batch of synthetic JSON files (with bad data)
   - serverless SDP pipeline pointing at the Repos clone of this repo
+  - Lakeflow Job that runs the pipeline (used for the "Edit as YAML" demo in Block B)
   - AI/BI dashboard wired to the gold tables
   - Genie space wired to the silver/gold tables
 
@@ -31,6 +32,7 @@ from pathlib import Path
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.dashboards import Dashboard, LifecycleState
+from databricks.sdk.service.jobs import CronSchedule, JobSettings, PauseStatus, PipelineTask, Task
 from databricks.sdk.service.pipelines import FileLibrary, PipelineLibrary
 from faker import Faker
 
@@ -167,6 +169,53 @@ def run_pipeline_and_wait(w: WorkspaceClient, pipeline_id: str, timeout_s: int =
     raise SystemExit(f"Pipeline update {update_id} did not finish within {timeout_s}s")
 
 
+def find_job_id(w: WorkspaceClient, name: str) -> int | None:
+    for j in w.jobs.list(name=name):
+        if j.settings and j.settings.name == name:
+            return j.job_id
+    return None
+
+
+def create_or_update_job(w: WorkspaceClient, *, name: str, pipeline_id: str) -> int:
+    """Create a Lakeflow Job that runs the dev pipeline.
+
+    Mirrors the bundle's `resources/ingestion_job.yml` shape so that "Edit as
+    YAML" in the workspace UI produces output recognisable to attendees.
+    """
+    task = Task(
+        task_key="run_ingestion_pipeline",
+        pipeline_task=PipelineTask(pipeline_id=pipeline_id, full_refresh=False),
+    )
+    schedule = CronSchedule(
+        quartz_cron_expression="0 0 * * * ?",
+        timezone_id="UTC",
+        pause_status=PauseStatus.PAUSED,
+    )
+
+    existing = find_job_id(w, name)
+    if existing:
+        print(f"  updating existing job {existing}")
+        w.jobs.reset(
+            job_id=existing,
+            new_settings=JobSettings(
+                name=name,
+                tasks=[task],
+                schedule=schedule,
+                max_concurrent_runs=1,
+            ),
+        )
+        return existing
+
+    print(f"  creating new job {name}")
+    resp = w.jobs.create(
+        name=name,
+        tasks=[task],
+        schedule=schedule,
+        max_concurrent_runs=1,
+    )
+    return resp.job_id
+
+
 def find_dashboard_id(w: WorkspaceClient, display_name: str) -> str | None:
     for d in w.lakeview.list():
         if d.display_name == display_name and d.lifecycle_state != LifecycleState.TRASHED:
@@ -285,12 +334,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"asset name: {asset_name}")
 
     # ── Schema + volume ────────────────────────────────────────────────────
-    print("\n[1/6] Schema + volume")
+    print("\n[1/7] Schema + volume")
     ensure_schema(w, args.catalog, schema)
     ensure_volume(w, args.catalog, schema, VOLUME_NAME)
 
     # ── Initial files ──────────────────────────────────────────────────────
-    print("\n[2/6] Initial synthetic files")
+    print("\n[2/7] Initial synthetic files")
     cfg = GeneratorConfig(
         catalog=args.catalog,
         schema=schema,
@@ -306,7 +355,7 @@ def main(argv: list[str] | None = None) -> int:
     write_fact_batch(w, cfg, fake, matter_ids, user_ids, doc_ids)
 
     # ── Verify Repos clone ─────────────────────────────────────────────────
-    print("\n[3/6] Verify Repos clone")
+    print("\n[3/7] Verify Repos clone")
     library_paths = repos_pipeline_paths(email)
     missing = [p for p in library_paths if not workspace_path_exists(w, p)]
     if missing:
@@ -320,7 +369,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  found all 3 pipeline files under /Workspace/Repos/{email}/{REPO_NAME}/")
 
     # ── SDP pipeline ───────────────────────────────────────────────────────
-    print("\n[4/6] SDP pipeline")
+    print("\n[4/7] SDP pipeline")
     pipeline_id = create_or_update_pipeline(
         w,
         name=asset_name,
@@ -335,8 +384,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         run_pipeline_and_wait(w, pipeline_id, timeout_s=600)
 
+    # ── Job ────────────────────────────────────────────────────────────────
+    print("\n[5/7] Lakeflow Job (for the 'Edit as YAML' demo)")
+    job_id = create_or_update_job(w, name=asset_name, pipeline_id=pipeline_id)
+
     # ── Dashboard ──────────────────────────────────────────────────────────
-    print("\n[5/6] Dashboard")
+    print("\n[6/7] Dashboard")
     warehouse_id = pick_warehouse_id(w)
     dashboard_id, dashboard_path = create_or_update_dashboard(
         w,
@@ -348,7 +401,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # ── Genie space ────────────────────────────────────────────────────────
-    print("\n[6/6] Genie space")
+    print("\n[7/7] Genie space")
     description = (
         "Natural-language exploration of legal practice data: matters, billable hours, "
         "and document activity. Backed by the edetl-workshop SDP gold layer."
@@ -367,6 +420,7 @@ def main(argv: list[str] | None = None) -> int:
     print("\n" + "=" * 70)
     print("done. open these in your workspace:")
     print(f"  pipeline:  {host}/pipelines/{pipeline_id}")
+    print(f"  job:       {host}/jobs/{job_id}")
     print(f"  dashboard: {host}/sql/dashboardsv3/{dashboard_id}")
     print(f"  genie:     {host}/genie/rooms/{space_id}")
     print("=" * 70)
