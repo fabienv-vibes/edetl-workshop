@@ -9,12 +9,10 @@ resources:
             pipeline_id: ${resources.pipelines.ingestion_pipeline.id}
             full_refresh: false
 
-      # Hourly schedule, paused by default — attendees unpause it after the
-      # first manual run during the workshop.
-      schedule:
-        quartz_cron_expression: "0 0 * * * ?"   # every hour on the hour
-        timezone_id: UTC
-        pause_status: PAUSED
+      # No schedule — attendees trigger the job manually during the workshop.
+      # To run on a cadence, add a `schedule:` block with quartz_cron_expression,
+      # timezone_id, and pause_status. See:
+      # https://learn.microsoft.com/en-us/azure/databricks/jobs/scheduled
 
       max_concurrent_runs: 1
 

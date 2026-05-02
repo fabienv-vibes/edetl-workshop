@@ -52,7 +52,7 @@ flowchart LR
     EXTRAS["02_extras.py / Genie Code prompt<br>(optional, Block C)"]
     VOL[("UC Volume<br>raw_landing")]
     SDP["SDP Pipeline<br>bronze → silver → gold<br>(@dlt.expect_or_drop)"]
-    JOB["Lakeflow Job<br>hourly, paused"]
+    JOB["Lakeflow Job<br>manual trigger"]
     DASH["AI/BI Dashboard<br>(via Genie Code)"]
     GENIE["Genie Space<br>(via 02_extras.py)"]
 
@@ -146,7 +146,7 @@ See [Collaborate on bundles in the workspace](https://learn.microsoft.com/en-us/
 
 #### 3. Promote to stg (~10 min)
 
-From the workspace bundle editor, deploy the bundle to the `stg` target. After the deploy, navigate to **Jobs & Pipelines** to confirm `[stg] edetl-edetl_stg` (pipeline) and the hourly job are live.
+From the workspace bundle editor, deploy the bundle to the `stg` target. After the deploy, navigate to **Jobs & Pipelines** to confirm `[stg] edetl-edetl_stg` (pipeline) and the `[stg] edetl-ingestion` job are live (no schedule — trigger manually).
 
 To seed the staging volume, open `01_generate_files.py`, set `schema = edetl_stg`, and **Run all**. Then trigger the job from the workspace UI. After the run, `<CATALOG>.edetl_stg` has the same bronze/silver/gold tables, populated.
 

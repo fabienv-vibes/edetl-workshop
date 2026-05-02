@@ -32,7 +32,7 @@ from pathlib import Path
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import NotFound
-from databricks.sdk.service.jobs import CronSchedule, JobSettings, PauseStatus, PipelineTask, Task
+from databricks.sdk.service.jobs import JobSettings, PipelineTask, Task
 from databricks.sdk.service.pipelines import FileLibrary, PipelineLibrary
 from faker import Faker
 
@@ -184,15 +184,12 @@ def create_or_update_job(w: WorkspaceClient, *, name: str, pipeline_id: str) -> 
 
     Mirrors the bundle's `resources/ingestion_job.yml` shape so that "Edit as
     YAML" in the workspace UI produces output recognisable to attendees.
+
+    No schedule — attendees trigger manually during the workshop.
     """
     task = Task(
         task_key="run_ingestion_pipeline",
         pipeline_task=PipelineTask(pipeline_id=pipeline_id, full_refresh=False),
-    )
-    schedule = CronSchedule(
-        quartz_cron_expression="0 0 * * * ?",
-        timezone_id="UTC",
-        pause_status=PauseStatus.PAUSED,
     )
 
     existing = find_job_id(w, name)
@@ -203,7 +200,6 @@ def create_or_update_job(w: WorkspaceClient, *, name: str, pipeline_id: str) -> 
             new_settings=JobSettings(
                 name=name,
                 tasks=[task],
-                schedule=schedule,
                 max_concurrent_runs=1,
             ),
         )
@@ -213,7 +209,6 @@ def create_or_update_job(w: WorkspaceClient, *, name: str, pipeline_id: str) -> 
     resp = w.jobs.create(
         name=name,
         tasks=[task],
-        schedule=schedule,
         max_concurrent_runs=1,
     )
     return resp.job_id
