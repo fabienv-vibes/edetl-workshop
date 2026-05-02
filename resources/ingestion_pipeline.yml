@@ -3,7 +3,7 @@ resources:
     ingestion_pipeline:
       name: "[${bundle.target}] edetl-${var.schema}"
       catalog: ${var.catalog}
-      target: ${var.schema}
+      schema: ${var.schema}
 
       # Pipeline configuration values are read inside the .py files via
       # spark.conf.get("workshop.raw_path").
