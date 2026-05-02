@@ -140,13 +140,13 @@ Compare the generated YAML against `resources/ingestion_job.yml` already in this
   - `resources/ingestion_pipeline.yml` — serverless SDP pipeline
   - `resources/ingestion_job.yml` — Lakeflow Job (matches the YAML you exported in step 1)
 
-The bundle editor lints, validates, and offers schema-aware IntelliSense — no need to memorise the YAML structure. The `mode: production` target makes the pipeline service-principal-owned, locks names, and runs as the deployer.
+The bundle editor lints, validates, and offers schema-aware IntelliSense — no need to memorise the YAML structure. The `stg` target uses `mode: development` so the bundle is portable across workspaces, deploys into the current user's folder, and prefixes resource names with `[dev <your_user>]` so multiple attendees don't collide. For production CI/CD, switch to `mode: production`, pin a `host`, and configure a service-principal `run_as`.
 
 See [Collaborate on bundles in the workspace](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/bundles/workspace) for the full feature overview.
 
 #### 3. Promote to stg (~10 min)
 
-From the workspace bundle editor, deploy the bundle to the `stg` target. After the deploy, navigate to **Jobs & Pipelines** to confirm `[stg] edetl-edetl_stg` (pipeline) and the `[stg] edetl-ingestion` job are live (no schedule — trigger manually).
+From the workspace bundle editor, deploy the bundle to the `stg` target. After the deploy, navigate to **Jobs & Pipelines** to confirm `[dev <your_user>] [stg] edetl-edetl_stg` (pipeline) and `[dev <your_user>] [stg] edetl-ingestion` (job) are live (no schedule — trigger manually). The `[dev <your_user>]` prefix comes from `mode: development` and isolates each attendee's deploy.
 
 To seed the staging volume, open `01_generate_files.py`, set `schema = edetl_stg`, and **Run all**. Then trigger the job from the workspace UI. After the run, `<CATALOG>.edetl_stg` has the same bronze/silver/gold tables, populated.
 

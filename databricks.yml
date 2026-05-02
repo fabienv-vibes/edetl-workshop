@@ -25,11 +25,14 @@ variables:
 targets:
   stg:
     default: true
-    mode: production
-    # No `workspace.host` pin — the bundle deploys to whatever workspace
-    # you're connected to (active CLI profile, or the current workspace
-    # when opened in the workspace bundle editor). Pin a host here only
-    # if this bundle should always deploy to a specific workspace.
+    # Development mode is the right choice for a workshop:
+    #   - portable across workspaces (no host pin required)
+    #   - allows user-folder root_path (avoids needing a shared SP location)
+    #   - prefixes resource names with `[dev <user>]` so attendees don't collide
+    #   - any schedules are auto-paused on deploy
+    # For production CI/CD, switch to `mode: production`, pin a `host:` under
+    # workspace, and configure `run_as` for a service principal.
+    mode: development
     workspace:
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     permissions:
