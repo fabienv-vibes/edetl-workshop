@@ -253,4 +253,6 @@ pytest tests/ -v
 
 ## Customizing for your workspace
 
-In `databricks.yml`, replace the `host:` under `targets.stg.workspace` with your Azure / AWS Databricks workspace URL. Everything else lives behind the `catalog` variable.
+The bundle is workspace-agnostic by default — `databricks.yml` doesn't pin `targets.stg.workspace.host`, so the bundle deploys to whichever workspace you're connected to (active CLI profile, or the workspace you opened the bundle editor in). Everything else lives behind the `catalog` variable.
+
+To pin the bundle to a specific workspace (e.g. for production CI/CD), add `host: https://<your-workspace>` under `targets.stg.workspace`.
