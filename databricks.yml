@@ -1,5 +1,6 @@
 bundle:
   name: edetl-workshop
+  uuid: ab9e4da2-2dcb-44f2-b195-e64cd8e31da0
 
 include:
   - resources/*.yml
@@ -9,18 +10,20 @@ include:
 # SDP editor (pointing at this repo cloned into a Databricks Git folder) — no
 # DAB involved. The DAB owns stg only, demonstrating the workspace -> DAB
 # promotion pattern. See README for the dev setup walk-through.
+#
+# Variables are declared here with descriptions only; values are bound on
+# each target below. This matches the canonical default-python bundle
+# template and is what the workspace bundle editor expects when rendering
+# resources that reference these variables.
 variables:
   catalog:
-    description: "UC catalog (REQUIRED — set via --var catalog=... or repo secret)"
+    description: "UC catalog the pipeline writes into. Override in the deployments panel or via --var."
   schema:
-    description: "Schema for pipeline outputs"
-    default: edetl_stg
+    description: "Schema for pipeline outputs."
   volume:
-    description: "Volume name for raw landing files"
-    default: raw_landing
+    description: "Volume name for raw landing files."
   raw_path:
-    description: "Computed UC volume path the pipeline reads from"
-    default: /Volumes/${var.catalog}/${var.schema}/${var.volume}
+    description: "Computed UC volume path the pipeline reads from."
 
 targets:
   stg:
@@ -35,6 +38,11 @@ targets:
     mode: development
     workspace:
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: main
+      schema: edetl_stg
+      volume: raw_landing
+      raw_path: /Volumes/${var.catalog}/${var.schema}/${var.volume}
     permissions:
       - level: CAN_MANAGE
         user_name: ${workspace.current_user.userName}
