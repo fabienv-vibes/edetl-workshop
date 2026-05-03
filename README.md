@@ -146,7 +146,9 @@ See [Collaborate on bundles in the workspace](https://learn.microsoft.com/en-us/
 
 #### 3. Promote to stg (~10 min)
 
-From the workspace bundle editor, deploy the bundle to the `stg` target. After the deploy, navigate to **Jobs & Pipelines** to confirm `[dev <your_user>] [stg] edetl-edetl_stg` (pipeline) and `[dev <your_user>] [stg] edetl-ingestion` (job) are live (no schedule — trigger manually). The `[dev <your_user>]` prefix comes from `mode: development` and isolates each attendee's deploy.
+`00_setup.py` already wrote your catalog choice to `.databricks/bundle/stg/variable-overrides.json` (gitignored), so the bundle deploy reuses it automatically — no need to re-type the catalog in the deployments panel or via `--var`.
+
+From the workspace bundle editor, deploy the bundle to the `stg` target. After the deploy, navigate to **Jobs & Pipelines** to confirm `[dev <your_user>] [stg] edetl-ingestion` (pipeline) and `[dev <your_user>] [stg] edetl-ingestion` (job) are live (no schedule — trigger manually). The `[dev <your_user>]` prefix comes from `mode: development` and isolates each attendee's deploy.
 
 To seed the staging volume, open `01_generate_files.py`, set `schema = edetl_stg`, and **Run all**. Then trigger the job from the workspace UI. After the run, `<CATALOG>.edetl_stg` has the same bronze/silver/gold tables, populated.
 

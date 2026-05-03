@@ -26,6 +26,7 @@ Requires: pip install databricks-sdk faker
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -243,12 +244,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"asset name: {asset_name}")
 
     # ── Schema + volume ────────────────────────────────────────────────────
-    print("\n[1/5] Schema + volume")
+    print("\n[1/6] Schema + volume")
     ensure_schema(w, args.catalog, schema)
     ensure_volume(w, args.catalog, schema, VOLUME_NAME)
 
     # ── Initial files ──────────────────────────────────────────────────────
-    print("\n[2/5] Initial synthetic files")
+    print("\n[2/6] Initial synthetic files")
     cfg = GeneratorConfig(
         catalog=args.catalog,
         schema=schema,
@@ -264,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
     write_fact_batch(w, cfg, fake, matter_ids, user_ids, doc_ids)
 
     # ── Verify Git folder clone ────────────────────────────────────────────
-    print("\n[3/5] Verify Git folder clone")
+    print("\n[3/6] Verify Git folder clone")
     library_paths, base = resolve_pipeline_paths(w, email)
     if not library_paths:
         print("  ERROR: required pipeline files are missing in your workspace.")
@@ -277,7 +278,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  found all 3 pipeline files under {base}/")
 
     # ── SDP pipeline ───────────────────────────────────────────────────────
-    print("\n[4/5] SDP pipeline")
+    print("\n[4/6] SDP pipeline")
     pipeline_id = create_or_update_pipeline(
         w,
         name=asset_name,
@@ -293,8 +294,24 @@ def main(argv: list[str] | None = None) -> int:
         run_pipeline_and_wait(w, pipeline_id, timeout_s=600)
 
     # ── Job ────────────────────────────────────────────────────────────────
-    print("\n[5/5] Lakeflow Job (for the 'Edit as YAML' demo)")
+    print("\n[5/6] Lakeflow Job (for the 'Edit as YAML' demo)")
     job_id = create_or_update_job(w, name=asset_name, pipeline_id=pipeline_id)
+
+    # ── Bundle variable override ──────────────────────────────────────────
+    # Write the catalog choice to .databricks/bundle/stg/variable-overrides.json
+    # so Block B's `databricks bundle deploy -t stg` (CLI) and the workspace
+    # bundle editor can pick up the catalog automatically — attendees don't
+    # have to re-type it.
+    print("\n[6/6] Bundle variable override (so Block B reuses this catalog)")
+    bundle_root = Path(__file__).resolve().parent.parent
+    overrides_path = bundle_root / ".databricks" / "bundle" / "stg" / "variable-overrides.json"
+    overrides_path.parent.mkdir(parents=True, exist_ok=True)
+    overrides_path.write_text(json.dumps({"catalog": args.catalog}, indent=2) + "\n")
+    try:
+        rel = overrides_path.relative_to(bundle_root)
+    except ValueError:
+        rel = overrides_path
+    print(f"  wrote {rel}")
 
     # ── Summary ────────────────────────────────────────────────────────────
     host = w.config.host.rstrip("/")

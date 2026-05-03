@@ -61,6 +61,9 @@ print(f"  Schema:    {catalog}.{schema}")
 print(f"  Volume:    {catalog}.{schema}.{VOLUME_NAME}")
 print(f"  Pipeline:  {asset_name}")
 print(f"  Job:       {asset_name}")
+print()
+print(f"It will also write `.databricks/bundle/stg/variable-overrides.json` so")
+print(f"Block B's bundle deploy reuses `catalog={catalog}` automatically.")
 
 # COMMAND ----------
 
