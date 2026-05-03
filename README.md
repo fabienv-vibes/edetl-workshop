@@ -154,14 +154,24 @@ To seed the staging volume, open `01_generate_files.py`, set `schema = edetl_stg
 
 For the same flow from the CLI (validate / deploy / run), see [Production setup](#production-setup).
 
-#### 4. Walk the GitHub Actions (~10 min)
+#### 4. CI/CD with the bundle — high level (~10 min)
 
-- `.github/workflows/pr-check.yml` — on PR: pytest + `bundle validate -t stg`
-- `.github/workflows/deploy.yml` — on push to main: `bundle deploy -t stg`, then optional `bundle run`
+The bundle you just deployed from the workspace is the same artifact a CI/CD pipeline would deploy. The full production-grade pattern looks like:
 
-Repo secrets needed: `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, `DATABRICKS_CLIENT_SECRET`, `WORKSHOP_CATALOG`.
+1. **Author** in the workspace bundle editor (what you just did) or a local IDE
+2. **Commit** to Git — the bundle YAML is the source of truth
+3. **PR check** runs in CI on every pull request: `pytest tests/` + `databricks bundle validate -t stg`
+4. **Deploy** runs in CI on push to `main`: `databricks bundle deploy -t stg` (optionally with `bundle run` to smoke-test)
+5. **Authentication** in CI: a Databricks **service principal** with OAuth M2M, configured via repo secrets (`DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, `DATABRICKS_CLIENT_SECRET`)
 
-The full pattern: **workspace UI authors → Git is source of truth → Actions deploy to production**.
+We're not wiring up a live GitHub Actions pipeline as part of the workshop — the SP setup, repo secrets, and CI provider config are deployment-specific and best done in a follow-up engagement. The Azure docs cover all of it:
+
+- [CI/CD on Azure Databricks](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/ci-cd/) — overview of the high-level flow
+- [GitHub Actions for Azure Databricks](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/ci-cd/github) — official action + workflow examples
+- [Best practices and recommended CI/CD workflows](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/ci-cd/best-practices)
+- [Service principals for CI/CD](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/auth/service-principals)
+
+For your specific repo + workspace setup, your Databricks SA or the **Specialist Technical Services (STS)** team can wire this up as a follow-on after the workshop — see [Production setup](#production-setup) below.
 
 #### 5. Live-stub your own `edetl` repo (~10 min)
 
