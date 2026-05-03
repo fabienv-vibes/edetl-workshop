@@ -1,14 +1,17 @@
 resources:
   pipelines:
     ingestion_pipeline:
-      name: "[${bundle.target}] edetl-${var.schema}"
+      name: "[${bundle.target}] edetl-ingestion"
       catalog: ${var.catalog}
-      schema: ${var.schema}
+      # Reference the schema resource so dev-mode prefixes resolve consistently
+      # (deployed schema name = `dev_<user>_edetl_stg` in mode: development).
+      schema: ${resources.schemas.pipeline_schema.name}
 
       # Pipeline configuration values are read inside the .py files via
-      # spark.conf.get("workshop.raw_path").
+      # spark.conf.get("workshop.raw_path"). Computed from the resource
+      # references so the path always matches the deployed schema/volume.
       configuration:
-        workshop.raw_path: ${var.raw_path}
+        workshop.raw_path: /Volumes/${var.catalog}/${resources.schemas.pipeline_schema.name}/${resources.volumes.raw_landing.name}
 
       # Serverless SDP — no cluster config required.
       serverless: true

@@ -8,7 +8,8 @@ resources:
   volumes:
     raw_landing:
       catalog_name: ${var.catalog}
-      schema_name: ${var.schema}
+      # Reference the schema resource directly so dev-mode prefixes resolve consistently.
+      schema_name: ${resources.schemas.pipeline_schema.name}
       name: ${var.volume}
       volume_type: MANAGED
       comment: "Auto Loader raw JSON landing zone for the edetl-workshop pipeline"

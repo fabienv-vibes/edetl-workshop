@@ -22,8 +22,6 @@ variables:
     description: "Schema for pipeline outputs."
   volume:
     description: "Volume name for raw landing files."
-  raw_path:
-    description: "Computed UC volume path the pipeline reads from."
 
 targets:
   stg:
@@ -42,7 +40,6 @@ targets:
       catalog: main
       schema: edetl_stg
       volume: raw_landing
-      raw_path: /Volumes/${var.catalog}/${var.schema}/${var.volume}
     permissions:
       - level: CAN_MANAGE
         user_name: ${workspace.current_user.userName}
